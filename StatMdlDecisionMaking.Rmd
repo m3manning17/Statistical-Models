@@ -2,8 +2,12 @@
 title: "Project1Manning"
 author: "Michelle Manning"
 date: "10/27/2021"
-output: pdf_document
-editor_options: 
+output:
+  html_document:
+    df_print: paged
+  fig_width: 10
+  fig_height: 8
+editor_options:
   chunk_output_type: inline
 ---
 In this quiz, I had to recognize and decide when to use which stats models for each question. The models showcased are a linear regression, multivariate linear regression, and one-way ANOVA.
