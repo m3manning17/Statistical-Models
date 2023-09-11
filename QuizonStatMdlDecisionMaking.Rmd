@@ -1,0 +1,330 @@
+---
+title: "Project1Manning"
+author: "Michelle Manning"
+date: "10/27/2021"
+output: pdf_document
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include = TRUE, warning = FALSE}
+library(tidyverse)
+library(pander)
+library(car)
+library(GGally)
+library(broom)
+coag <- read.csv("coagulation.csv", header = TRUE)
+infmort <- read.csv("infmort.csv", header = TRUE)
+pima<- read.csv("pima.csv", header = TRUE)
+prostate<- read.csv("prostate.csv", header = TRUE)
+
+#lm, mlm, anova, ttest
+#Hypothesis, EDA, hypothesis testing, covariance, normality, fit tests, visualization
+```
+
+Question 1;
+1.NAs removed. See Below.
+2. Linear Regression. 
+Null Hypothesis: There is no statistically significant association between family history (diabetes) and those with and without diabetes(test). 
+Alternative Hypothesis: There is statistically significant association between family history (diabetes) and those with and without diabetes(test). 
+Significance will be set to 0.05, standard alpha level.
+
+Results:
+P-value: 2e-16 
+There is statistically significant association between family history (diabetes) and those with and without diabetes(test). The Reject the Null. 
+Adjusted R-squared = 0.029, the model doesn't explain much of the variance seen
+Coefficients are significant
+Residuals= Median=-0.0967
+Residual standard error=0.327
+F-stat= 23.87
+
+Conclusion:
+There is a link between family history and currently having diabetes.
+3.I decided to keep test in the regression model so its portion of the explanation of variance is accounted for. Variables associated with diabetes =  test, triceps, & insulin.
+4.I decided to keep test in the regression model so its portion of the explanation of variance is accounted for. Variables associated with test = diabetes, pregnant, glucose, diastolic, & bmi. Makes sense if you have diabetes, then these variables are closely linked like glucose.
+```{r, include = TRUE}
+#1 Remove NAs
+pima[, 2:6][pima[, 2:6]==0] = NA
+head(pima)
+
+#2
+#Run Linear Regression for Assumption functions to makes sense
+LinearReg <- lm(diabetes ~ factor(test), data = pima)
+summary(LinearReg)
+
+#Dummy variable: Test is an integer, but it is categorical ergo the dummy transformation
+pimaDum <- mutate(pima, test.dum = factor(test))
+LinearReg_Dum <- lm(diabetes~test.dum, pimaDum) #final linear regression, but to work with the assumptions below I put it here
+summary(LinearReg_Dum)
+
+#EDA
+#Preliminary EDA
+    #Summaries
+    dim(pima)
+    str(pima)
+    summary(pima)
+    pima %>%
+      group_by(factor(test)) %>%
+      summarise(n = n(), mean = mean(diabetes), sd = sd(diabetes), 
+      median = median(diabetes), IQR = IQR(diabetes)) %>% pander
+    #Plots
+    ggplot(pima, aes(test))+
+      geom_bar()
+    ggplot(pima, aes(diabetes))+
+        geom_histogram()+
+        geom_vline(aes(xintercept = mean(diabetes)), color = "red")
+    ggplot(pima, aes(diabetes))+
+      geom_boxplot() #alot of outliers
+    ggplot(pima, aes(x= factor(test), y= diabetes))+
+        geom_boxplot()
+  #Assumptions
+    #1.Independent observations = The family history and having diabetes of a participant is not dependent on another participant's history or diabetes presence. 
+    #2.Linearity = Not linear
+      par(mfrow=c(2,2))
+      plot(LinearReg) #Residual vs Fitted plot is linear, but only between two points
+      crPlots(LinearReg) # Most of the variables' residuals are not linear
+    #3 Homoscedasticity/ constant variability = Not homoscedastic.
+      par(mfrow=c(2,2))
+      plot(LinearReg)#See plot(multiReg)'s Scale-Location plot. The line is not horizontal and it only between two points.
+    #4 Normality of Residuals = Residuals are not normal. Need to log(diabetes).
+      #See plot(LinearReg)'s Nornal Q-Q plot OR the following: 
+      pima.data <- augment(LinearReg_Dum)# get the residuals
+      ggplot(pima.data, aes(sample = .std.resid)) +
+geom_qq() +
+stat_qq_line(color = "green") #Doesn't follow a straight line, not normal at all
+     ggplot(pima.data, aes(x = .resid)) +
+geom_histogram(bins = 35) #Normal enough, maybe a little platykurtic
+     #Log function
+      LinearReg1 <- lm(log(diabetes)~ test.dum, data = pimaDum)
+      summary(LinearReg1)
+      crPlots(LinearReg1)
+      par(mfrow=c(2,2))
+      plot(LinearReg1)#A lot more normal now
+      (length(boxplot(pima$diabetes, plot=F)$out)/768)*100 #I could remove outliers here, but I've decided against it since there are so many of them (3.8% of data are outliers). That seems like a lot to cut out.
+
+#3 Variables associated with diabetes: test, triceps, & insulin
+ExploreDiabetes <- lm(log(diabetes) ~ test.dum + pregnant + glucose + diastolic + triceps + insulin + bmi + age, pimaDum)
+summary(ExploreDiabetes) %>% pander
+
+#4 Variables associated with diabetes: diabetes, pregnant, glucose, diastolic, & bmi
+ExploreTest <- lm(test ~ diabetes + pregnant + glucose + diastolic + triceps + insulin + bmi + age, pima)
+summary(ExploreTest) %>% pander
+```
+
+Question 2:
+1.Small sample is a problem for ANOVAs. It's a assumption that is not as robust as other assumptions. There isn't enough points to be normal and outliers could really affect data that is too small. 
+2.ANOVA
+Null Hypothesis: There is no difference between coagulation time means between diet types.
+Alternative Hypothesis: There is a difference between at least one of the coagulation time means between diet types.
+Significance will be set to 0.05, standard alpha level.
+
+ANOVA results:
+There is a statistically significant between means. Reject the null.
+P-value=4.66e^05
+F=13.57
+Bonferroni = D is significantly different from B & C. A is sig dif from B & C.
+
+Conclusion:
+There is a difference between diets and coagulation times. The diets that differ are D from B & C and A differs from B & C.
+```{r, include = TRUE}
+#1
+#EDA
+#Peliminary EDA
+    dim(coag)
+    str(coag)
+    summary(coag)
+    summary(coag$coag)
+    summary(factor(coag$diet))
+    coag %>%
+      group_by(diet) %>%
+      summarise(n = n(), mean = mean(coag), sd = sd(coag), 
+      median = median(coag), IQR = IQR(coag)) %>% pander
+     #Plots
+    ggplot(coag, aes(diet, fill= diet))+
+      geom_bar()
+    ggplot(coag, aes(coag))+
+        geom_boxplot()+
+        geom_vline(aes(xintercept = mean(coag)), color = "green")
+    ggplot(coag, aes(x=coag, fill = diet)) +
+      geom_boxplot()+
+      facet_grid(diet ~ .)+
+    theme(legend.position = "none")
+  #Assumptions
+    #1.Independent observations = Assumed in the experiment's design
+    #2.Homogeneity = There is equal variance
+      leveneTest(coag$coag, factor(coag$diet)) #Equal variance
+    #3 Normality (especially because the sample size is small) = Not Skewed, but platykurtic. Not enough samples to really make an ideal normal distribution.
+      shapiro.test(coag$coag)#normal bc p-value is not significant
+      qplot(data=coag, sample= coag, color=diet)#not linear nor lined up
+      ggplot(coag, aes(coag))+
+      geom_histogram(binwidth=.9)# Not enough points to be normal.
+    #4 No extreme outliers
+      ggplot(coag, aes(coag))+
+      geom_boxplot()+
+        facet_wrap("diet")#No extreme outliers. Can't remove data with such a small sample size anyways.
+  
+#2
+#Run ANOVA test:
+anova <- aov(coag ~ diet, data = coag)
+summary(anova) %>% pander
+bonferroni<- pairwise.t.test(coag$coag, coag$diet, p.adjust.method = "bonferroni")
+bonferroni #D is significantly different from B & C. A is sig dif from B & C.
+```
+
+Question 3:
+1.NA/Noted
+2.Multiple Regression
+Null Hypothesis: There is no relationship between psa and the rest of the variables
+Alternative Hypothesis: There is a relationship between psa and the rest of the variables
+Significance will be set to 0.05, standard alpha level.
+
+Results:
+P-value: 0.255882
+There is no statistically significant association between psa and lcavol, lweight, svi, age, and lbph collectively. Fail to reject the Null. 
+Adjusted R-squared = 0.6245 , the model explains 62.45% of the variability seen
+Coefficients are significant: lcavol, lweight, svi
+Residual standard error=0.7073
+F-stat= 32.94
+
+Conclusion: Though some coefficients were significant, the overall main effect wasn't, so we failed to find a significant relationship between psa and the variables we narrowed down to be the most influential on psa.
+```{r,include = TRUE}
+#2 
+#Run Multiple Regression for Assumption functions to makes sense
+multiReg <- lm(lpsa ~ lcavol + lweight + age + lbph + svi + lcp + gleason + pgg45, data = prostate)
+summary(multiReg)
+#EDA
+  #Preliminary EDA
+  dim(prostate)
+  str(prostate)
+  summary(prostate)
+    #Plots
+    ggplot(prostate, aes(lpsa))+
+        geom_histogram()+
+        geom_vline(aes(xintercept = mean(lpsa)), color = "blue")
+  #Assumptions
+    #1.Independent observations = Assumed in design of experiment. Durbin-Watson could be applied.
+    #2.Linearity = Not linear
+      par(mfrow=c(2,2))
+      plot(multiReg) #Residual vs Fitted plot is not linear
+      crPlots(multiReg) # Most of the variables' residuals are not linear
+      #Maybe transforming lcavol will help. (Even though I see the log transformation has been applied to the relevant variables.)
+      prostate1 <- prostate %>% mutate(lcavol_c = scale(lcavol, scale = FALSE))
+      multiReg1 <- lm(lpsa ~ lcavol_c+ I(lcavol_c^2) + lweight + age + lbph + svi + lcp + gleason + pgg45, data = prostate1)
+      summary(multiReg1)
+      crPlots(multiReg1)#It barely changed, so I will not be using this transformation going forward, but I wanted to check.
+    #3 Homoscedasticity/ constant variability = Not homoscedastic.
+      par(mfrow=c(2,2))
+      plot(multiReg)#See plot(multiReg)'s Scale-Location plot. The line is not horizontal enough to be homoscedastic. Since a log transformation has already been performed it won't get much straighter than this.
+    #4 Normality of Residuals = Residuals are not the most normal. It could be worse, but it is not great.
+      #See plot(multiReg)'s Nornal Q-Q plot OR the following: 
+      pros.data <- augment(multiReg)# get the residuals
+      ggplot(pros.data, aes(sample = .resid)) +
+geom_qq() +
+stat_qq_line(color = "green") #Doesn't follow a straight line, not normal, but close
+     ggplot(pros.data, aes(x = .resid)) +
+geom_histogram(bins = 35) #Normal enough, maybe a little platykurtic
+     (length(boxplot(prostate$lpsa, plot=F)$out)/97)*100 #I could remove outliers here, but I've decided against it since there are so many of them (4.1% of data are outliers). That is too much to cut out
+    #5 No multicollinearity = Multicollinearity is present in a number of variables.
+      ggpairs(data=prostate)
+      ggcorr(prostate)#gleason & pgg45 are highly correlated and that makes sense. Pgg45 is based on gleason scores. lpsa & lcavol, lcp&svi, lcp&lcavol, lcp&pgg45,  lpsa&svi, and lcp&gleason are all relatively correlated, so multicollinearity is present.
+  
+  
+#Which model best fits
+  #by significance = lcavol, lweight, svi, with age and bph's p-val= 0.1
+  #by backward BIC = lcavol, lweight, svi
+    multiReg_back <- lm(lpsa ~ .,prostate)
+    n <- nrow(prostate)
+    back.bic <- step(multiReg_back, direction = "backward",  k= log(n), trace = 0)
+    back.bic
+  #by backward AIC = lcavol, lweight, svi, age, lbph,
+    multiReg_back <- lm(lpsa ~ .,prostate)
+    back.aic <- step(multiReg_back, direction = "backward", trace = 0)
+    back.aic
+    
+#Best model showdown!
+multiReg_best1 <- lm(lpsa ~ lcavol + lweight + svi + age + lbph, prostate)
+summary(multiReg_best1)#Adjusted r^2 = 0.6245, #The winner
+multiReg_best2 <- lm(lpsa ~ lcavol + lweight + svi, prostate)
+summary(multiReg_best2)#Adjusted r^2 = 0.6144
+#The R^2 for the first one is higher and therefore the predictor variables explain more of the variance with multiReg_best1 than multiReg_best2. Also the researchers are looking for more a predictive model than an explanatory model, so keeping age and lbph is the better choice. 
+```
+
+Question 4:
+1.Noted
+2.Regression with Interaction term
+Null Hypothesis: There is no effect of region on infant mortality rates even with the influence of income per capita accounted for.
+Alternative Hypothesis: There is an effect of region on infant mortality rates even with the influence of income per capita accounted for.
+Significance will be set to 0.10.
+
+Results:
+P-value: 4.55e-13
+There is affect of region on infant mortality rates even with the influence of income per capita accounted for. The Reject the Null. 
+Adjusted R-squared = 0.227, the model explains 22.7% of the variability seen
+Coefficients are significant  = Africa, Americas, and Europe regions along with interaction between Americas region and income
+Residual standard error=79.83
+F-stat= 5.194
+
+Conclusion:
+There is an effect of region on infant mortality rate. With the comparison point being Africa, the Americas and Europe decrease in mortality as compared to Africa. The Americas this especially true when factoring in the association income, which decreases as compared to Africa.
+
+Comparing the two models, we find
+```{r, include = TRUE}
+#1
+#Run Regression for Assumption functions to makes sense
+Reg <- lm(mortality ~ region, data = infmort)
+summary(Reg)
+#EDA
+  #Preliminary EDA
+  dim(infmort)
+  str(infmort)
+  sum(is.na(infmort))#4 NAs in mortality
+  infmort <- na.omit(infmort) 
+  summary(infmort)
+  infmort %>%
+group_by(region) %>%
+summarise(mean = mean(mortality)) %>% pander
+  levels(factor(infmort$region))
+  #Plots
+  ggplot(infmort, aes(mortality, fill= region))+
+        geom_boxplot()+
+      facet_grid(region ~ .)+
+    theme(legend.position = "none")
+  ggplot(infmort, aes(x = income, y = mortality, color = region))+
+    geom_point(alpha = 0.7)
+  #Assumptions
+    #Assumptions
+    #1.Independent of residuals = Assumed in design of experiment. 
+    #2.Linearity = Not linear.
+      par(mfrow=c(2,2))
+      plot(Reg)
+      crPlots(Reg) #Residuals vs Fitted plot looks not straight.
+    #3 Homoscedasticity/ constant variability of resifduals = Not homoscedastic.
+      par(mfrow=c(2,2))
+      plot(Reg)#Scale-Location plot is not straight.
+    #4 Normality of Residuals = Residuals are not normal. Skewed to the right & kurtotic.
+      #See plot(Reg)'s Normal Q-Q plot OR the following: 
+      infmort.data <- augment(Reg)# get the residuals
+      ggplot(infmort.data, aes(sample = .resid)) +
+geom_qq() +
+stat_qq_line(color = "green") # The outliers are way off the line
+     ggplot(infmort.data, aes(x = .resid)) +
+geom_histogram(bins = 25)# Now this shows it isn't normal. Right skewed & kurtotic
+     (length(boxplot(infmort$mortality, plot=F)$out)/101)*100 #I could remove outliers here, but I've decided against it since 3% of the data are outliers. That seems like a lot to cut out.
+      
+#Dummy variable  
+infmortDum <- mutate(infmort, region.dum = factor(region))
+Reg_Dum <- lm(mortality~region.dum, infmortDum)
+summary(Reg_Dum)
+
+#2 Answer
+interaction <- lm(mortality ~ region.dum * income, data = infmortDum)
+summary(interaction)
+
+#Tried log to make it more normal, but it didn't do much
+interaction.log <- lm(log(mortality) ~ region.dum * income, data = infmortDum)
+infmort.data2 <- augment(interaction.log)
+ggplot(infmort.data2, aes(sample = .std.resid)) +
+geom_qq() +
+stat_qq_line(color = "green") 
+
+```
