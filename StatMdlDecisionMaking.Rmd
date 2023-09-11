@@ -6,6 +6,7 @@ output: pdf_document
 editor_options: 
   chunk_output_type: inline
 ---
+In this quiz, I had to recognize and decide when to use which stats models for each question. The models showcased are a linear regression, multivariate linear regression, and one-way ANOVA.
 
 ```{r setup, include = TRUE, warning = FALSE}
 library(tidyverse)
@@ -18,7 +19,7 @@ infmort <- read.csv("infmort.csv", header = TRUE)
 pima<- read.csv("pima.csv", header = TRUE)
 prostate<- read.csv("prostate.csv", header = TRUE)
 
-#lm, mlm, anova, ttest
+#lm, mlreg, anova
 #Hypothesis, EDA, hypothesis testing, covariance, normality, fit tests, visualization
 ```
 
@@ -153,7 +154,7 @@ There is a difference between diets and coagulation times. The diets that differ
     #1.Independent observations = Assumed in the experiment's design
     #2.Homogeneity = There is equal variance
       leveneTest(coag$coag, factor(coag$diet)) #Equal variance
-    #3 Normality (especially because the sample size is small) = Not Skewed, but platykurtic. Not enough samples to really make an ideal normal distribution.
+    #3 Normality (especially because the sample size is small) = Not Skewed, but platykurtic. Not enough samples to really make an ideal normal         distribution.
       shapiro.test(coag$coag)#normal bc p-value is not significant
       qplot(data=coag, sample= coag, color=diet)#not linear nor lined up
       ggplot(coag, aes(coag))+
@@ -167,8 +168,9 @@ There is a difference between diets and coagulation times. The diets that differ
 #Run ANOVA test:
 anova <- aov(coag ~ diet, data = coag)
 summary(anova) %>% pander
-bonferroni<- pairwise.t.test(coag$coag, coag$diet, p.adjust.method = "bonferroni")
-bonferroni #D is significantly different from B & C. A is sig dif from B & C.
+#POST-TEST
+bonferroni<- pairwise.t.test(coag$coag, coag$diet, p.adjust.method = "bonferroni") #bonferroni over tukey bc its more conservative
+bonferroni #D is significantly different from B & C. A is sig difF from B & C.
 ```
 
 Question 3:
